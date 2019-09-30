@@ -2,6 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Authors>akpaevj</Authors>
+    <Company>akpaevj</Company>
+    <RepositoryUrl>https://github.com/akpaevj/OneSTechLog</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/akpaevj/OneSTechLog</PackageProjectUrl>
+    <Copyright>akpaevj</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
