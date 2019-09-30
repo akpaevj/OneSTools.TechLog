@@ -148,20 +148,20 @@ namespace OneSTechLog
         {
             var properties = new Dictionary<string, string>
             {
-                ["EventName"] = Regex.Match(eventData, @"(?<=^\d+-\d+-\d+\s\d+:\d+:\d+\.\d+-\d+,)\w+?(?=,)", RegexOptions.IgnoreCase | RegexOptions.Compiled).ToString(),
-                ["DateTime"] = Regex.Match(eventData, @"^\d+-\d+-\d+\s\d+:\d+:\d+\.\d+", RegexOptions.IgnoreCase | RegexOptions.Compiled).ToString(),
-                ["Duration"] = Regex.Match(eventData, @"(?<=^\d+-\d+-\d+\s\d+:\d+:\d+\.\d+-)\d+", RegexOptions.IgnoreCase | RegexOptions.Compiled).ToString()
+                ["EventName"] = Regex.Match(eventData, @",.*?,", RegexOptions.IgnoreCase | RegexOptions.Compiled).ToString().Trim(','),
+                ["DateTime"] = Regex.Match(eventData, @"^.*?\.\d+", RegexOptions.IgnoreCase | RegexOptions.Compiled).ToString(),
+                ["Duration"] = Regex.Match(eventData, @"-\d+?,", RegexOptions.IgnoreCase | RegexOptions.Compiled).ToString().Trim('-', ',')
             };
 
-            var props = Regex.Matches(eventData, @"(?<=,)[\w:]+=.*?(?=(,[\w:]+=|$))", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+            var props = Regex.Matches(eventData, @",[\w:]+=.*?(?=(,[\w:]+=|$))", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
-            foreach (var prop in props)
+            for (int x = 0; x < props.Count; x++)
             {
+                var prop = props[x];
                 var propText = prop.ToString();
                 var splInd = propText.IndexOf('=');
-                var propName = propText.Substring(0, splInd);
-                var propVal = propText.Substring(splInd + 1);
-                if (propVal.StartsWith("'") || propVal.StartsWith("\"")) propVal = propVal.Substring(1, propVal.Length - 2);
+                var propName = propText.Substring(0, splInd).Trim(',');
+                var propVal = propText.Substring(splInd + 1).Trim('\'', '"');
 
                 properties[propName] = propVal;
             }
