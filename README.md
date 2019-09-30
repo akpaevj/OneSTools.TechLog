@@ -15,6 +15,8 @@ private void EventHandler(Dictionary<string, string> eventData)
   switch (eventData["EventName"])
   {
     case "DBMSSQL":
+      var sql = eventData["Sql"];
+      var user = eventData["Usr"];
       // To do something
       break;
     default:
