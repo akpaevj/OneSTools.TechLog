@@ -3,11 +3,13 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Authors>akpaevj</Authors>
-    <Company>akpaevj</Company>
+    <Authors>Akpaev Evgeniy</Authors>
+    <Company>Akpaev Evgeniy</Company>
     <RepositoryUrl>https://github.com/akpaevj/OneSTechLog</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/akpaevj/OneSTechLog</PackageProjectUrl>
-    <Copyright>akpaevj</Copyright>
+    <PackageProjectUrl></PackageProjectUrl>
+    <Copyright>Akpaev Evgeniy</Copyright>
+    <Description>Библиотека для парсинга технологического журнала 1С</Description>
+    <Version>1.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
