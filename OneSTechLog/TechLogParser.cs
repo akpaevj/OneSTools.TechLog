@@ -29,53 +29,32 @@ namespace OneSTechLog
         /// </summary>
         public Action<Dictionary<string, string>> EventHandler { get => eventHandler; set => eventHandler = value; }
 
-        public TechLogParser(
-            string folder, 
-            Action<Dictionary<string, string>> eventHandler,
-            ExecutionDataflowBlockOptions readBlockOptions = null,
-            ExecutionDataflowBlockOptions parseBlockOptions = null,
-            ExecutionDataflowBlockOptions eventHandlerBlockOptions = null)
+        /// <summary>
+        /// Creates a new instance of TechLogParser class
+        /// </summary>
+        /// <param name="folder"></param>
+        /// <param name="eventHandler"></param>
+        public TechLogParser(string folder, Action<Dictionary<string, string>> eventHandler)
         {
             Folder = folder;
             EventHandler = eventHandler;
 
-            if (readBlockOptions == null)
+            readBlockOptions = new ExecutionDataflowBlockOptions
             {
-                this.readBlockOptions = new ExecutionDataflowBlockOptions
-                {
-                    MaxDegreeOfParallelism = Environment.ProcessorCount
-                };
-            }
-            else
-            {
-                this.readBlockOptions = readBlockOptions;
-            }
+                MaxDegreeOfParallelism = Environment.ProcessorCount
+            };
 
-            if (parseBlockOptions == null)
+            parseBlockOptions = new ExecutionDataflowBlockOptions
             {
-                this.parseBlockOptions = new ExecutionDataflowBlockOptions
-                {
-                    MaxDegreeOfParallelism = Environment.ProcessorCount,
-                    BoundedCapacity = 10000
-                };
-            }
-            else
-            {
-                this.parseBlockOptions = parseBlockOptions;
-            }
+                MaxDegreeOfParallelism = Environment.ProcessorCount,
+                BoundedCapacity = 10000
+            };
 
-            if (eventHandlerBlockOptions == null)
+            eventHandlerBlockOptions = new ExecutionDataflowBlockOptions
             {
-                this.eventHandlerBlockOptions = new ExecutionDataflowBlockOptions
-                {
-                    MaxDegreeOfParallelism = Environment.ProcessorCount,
-                    BoundedCapacity = 10000
-                };
-            }
-            else
-            {
-                this.eventHandlerBlockOptions = eventHandlerBlockOptions;
-            }
+                MaxDegreeOfParallelism = Environment.ProcessorCount,
+                BoundedCapacity = 10000
+            };
         }
 
         /// <summary>
@@ -86,7 +65,7 @@ namespace OneSTechLog
         {
             var eventHandlerBlock = new ActionBlock<Dictionary<string, string>>(EventHandler, eventHandlerBlockOptions);
             var parseEventBlock = new TransformBlock<string, Dictionary<string, string>>(ParseEventData, parseBlockOptions);
-            var readFileBlock = new ActionBlock<string>(async (filePath) => await ReadFile(filePath, parseEventBlock), readBlockOptions);
+            var readFileBlock = new ActionBlock<string>((filePath) => ReadFile(filePath, parseEventBlock), readBlockOptions);
 
             parseEventBlock.LinkTo(eventHandlerBlock);
 
@@ -94,7 +73,7 @@ namespace OneSTechLog
 
             foreach (var filePath in files)
             {
-                await SendDataToNextBlock(filePath, readFileBlock);
+                SendDataToNextBlock(filePath, readFileBlock);
             }
 
             var readBlockTask = readFileBlock.Completion.ContinueWith(c => parseEventBlock.Complete());
@@ -105,7 +84,7 @@ namespace OneSTechLog
             await Task.WhenAll(readBlockTask, parseEventBlockTask, eventHandlerBlock.Completion);
         }
 
-        private async Task ReadFile(string filePath, ITargetBlock<string> nextBlock)
+        private void ReadFile(string filePath, ITargetBlock<string> nextBlock)
         {
             using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
             using (var reader = new StreamReader(stream))
@@ -119,7 +98,7 @@ namespace OneSTechLog
                 {
                     var currentLine = reader.ReadLine();
 
-                    if (Regex.IsMatch(currentLine, @"^\d\d:\d\d\.\d+", RegexOptions.Compiled))
+                    if (Regex.IsMatch(currentLine, @"^\d\d:\d\d\.", RegexOptions.Compiled))
                     {
                         if (firstEvent)
                         {
@@ -127,38 +106,37 @@ namespace OneSTechLog
                         }
                         else
                         {
-                            await SendDataToNextBlock(fileDateTime + ":" + currentEvent.ToString(), nextBlock);
+                            SendDataToNextBlock(fileDateTime + ":" + currentEvent.ToString(), nextBlock);
 
                             currentEvent.Clear();
                         }
 
-                        currentEvent.Append(currentLine);
+                        currentEvent.AppendLine(currentLine);
                     }
                     else
                     {
-                        currentEvent.Append(currentLine);
+                        currentEvent.AppendLine(currentLine);
                     }
                 }
                 while (!reader.EndOfStream);
 
-                await SendDataToNextBlock(fileDateTime + ":" + currentEvent.ToString(), nextBlock);
+                SendDataToNextBlock(fileDateTime + ":" + currentEvent.ToString(), nextBlock);
             }
         }
         private Dictionary<string, string> ParseEventData(string eventData)
         {
             var properties = new Dictionary<string, string>
             {
-                ["EventName"] = Regex.Match(eventData, @",.*?,", RegexOptions.IgnoreCase | RegexOptions.Compiled).ToString().Trim(','),
-                ["DateTime"] = Regex.Match(eventData, @"^.*?\.\d+", RegexOptions.IgnoreCase | RegexOptions.Compiled).ToString(),
-                ["Duration"] = Regex.Match(eventData, @"-\d+?,", RegexOptions.IgnoreCase | RegexOptions.Compiled).ToString().Trim('-', ',')
+                ["EventName"] = Regex.Match(eventData, @",.*?,",  RegexOptions.Compiled).ToString().Trim(','),
+                ["DateTime"] = Regex.Match(eventData, @"^.*?\.\d+",  RegexOptions.Compiled).ToString(),
+                ["Duration"] = Regex.Match(eventData, @"-\d+?,",  RegexOptions.Compiled).ToString().Trim('-', ',')
             };
 
-            var props = Regex.Matches(eventData, @",[\w:]+=.*?(?=(,[\w:]+=|$))", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+            var props = Regex.Matches(eventData, @",[\w:]+=.*?(?=(,[\w:]+=|$))", RegexOptions.ExplicitCapture | RegexOptions.Singleline | RegexOptions.Compiled);
 
             for (int x = 0; x < props.Count; x++)
             {
-                var prop = props[x];
-                var propText = prop.ToString();
+                var propText = props[x].ToString();
                 var splInd = propText.IndexOf('=');
                 var propName = propText.Substring(0, splInd).Trim(',');
                 var propVal = propText.Substring(splInd + 1).Trim('\'', '"');
@@ -168,9 +146,9 @@ namespace OneSTechLog
 
             return properties;
         }
-        private async Task SendDataToNextBlock<T>(T data, ITargetBlock<T> nextBlock)
+        private void SendDataToNextBlock<T>(T data, ITargetBlock<T> nextBlock)
         {
-            while (!await nextBlock.SendAsync(data)) ;
+            while (!nextBlock.Post(data)) ;
         }
         private string[] GetTechLogFiles()
         {
