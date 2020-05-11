@@ -5,11 +5,11 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <Authors>Akpaev Evgeniy</Authors>
     <Company>Akpaev Evgeniy</Company>
-    <RepositoryUrl>https://github.com/akpaevj/OneSTechLog</RepositoryUrl>
+    <RepositoryUrl>https://github.com/akpaevj/OneSTools.TechLog</RepositoryUrl>
     <PackageProjectUrl></PackageProjectUrl>
     <Copyright>Akpaev Evgeniy</Copyright>
     <Description>Библиотека для парсинга технологического журнала 1С</Description>
-    <Version>1.0.3</Version>
+    <Version>1.0.4</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
