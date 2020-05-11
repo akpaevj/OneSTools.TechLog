@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OneSTechLog;
+using OneSTools.TechLog;
 using System.Diagnostics;
 
-namespace OneSTechLogTest
+namespace OneSTools.TechLogConsoleApp
 {
     class Program
     {

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using System.Text.RegularExpressions;
 
-namespace OneSTechLog
+namespace OneSTools.TechLog
 {
     /// <summary>
     /// Represents methods for the parsing of the 1C technological log

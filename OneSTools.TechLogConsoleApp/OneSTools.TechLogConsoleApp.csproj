@@ -55,9 +55,9 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\OneSTechLog\OneSTechLog.csproj">
+    <ProjectReference Include="..\OneSTools.TechLog\OneSTools.TechLog.csproj">
       <Project>{bc6e4dce-2722-4e6f-bcbc-8945de1127dd}</Project>
-      <Name>OneSTechLog</Name>
+      <Name>OneSTools.TechLog</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

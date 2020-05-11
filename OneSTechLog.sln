@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29318.209
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OneSTechLog", "OneSTechLog\OneSTechLog.csproj", "{BC6E4DCE-2722-4E6F-BCBC-8945DE1127DD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OneSTools.TechLog", "OneSTools.TechLog\OneSTools.TechLog.csproj", "{BC6E4DCE-2722-4E6F-BCBC-8945DE1127DD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OneSTechLogTest", "OneSTechLogTest\OneSTechLogTest.csproj", "{0FA99F0C-E533-46CB-A2BE-D83BDC6D4698}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OneSTools.TechLogConsoleApp", "OneSTools.TechLogConsoleApp\OneSTools.TechLogConsoleApp.csproj", "{0FA99F0C-E533-46CB-A2BE-D83BDC6D4698}"
 	ProjectSection(ProjectDependencies) = postProject
 		{BC6E4DCE-2722-4E6F-BCBC-8945DE1127DD} = {BC6E4DCE-2722-4E6F-BCBC-8945DE1127DD}
 	EndProjectSection
