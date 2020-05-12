@@ -25,3 +25,6 @@ jobs:
     #Publish
     - name: Publish NuGet
       uses: rohith/publish-nuget@v2.5.0
+      with:
+          # Filepath of the project to be packaged, relative to root of repository
+          PROJECT_FILE_PATH: OneSTools.TechLog/OneSTools.TechLog.csproj
