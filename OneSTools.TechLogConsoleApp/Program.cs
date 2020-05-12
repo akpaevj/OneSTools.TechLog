@@ -31,7 +31,7 @@ namespace OneSTools.TechLogConsoleApp
 
         private static void EventHandler(Dictionary<string, string> eventData)
         {
-            lock(locker)
+            lock (locker)
             {
                 i++;
             }
