@@ -1,5 +1,5 @@
 # OneSTools.TechLog
-[![Nuget](https://img.shields.io/nuget/v/OneSTools.TechLog)](https://www.nuget.org/packages/OneSTools.TechLog)<br>
+[![Nuget](https://img.shields.io/nuget/v/OneSTools.TechLog)](https://www.nuget.org/packages/OneSTools.TechLog) ![.NET Core](https://github.com/akpaevj/OneSTools.TechLog/workflows/.NET%20Core/badge.svg)<br>
 Библиотека позволяет выполнять парсинг технологического журнала и получать каждое событие (Event) в нормализованном виде (Dictionary<string, string>), где Key - это имя свойства, а Value - это значение свойства. Реализована на основе TPL от Microsoft (Dataflow) и использует все преимущества конвейерной обработки данных.
 
 Пример использования:
