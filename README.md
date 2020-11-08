@@ -24,3 +24,6 @@ private void EventHandler(Dictionary<string, string> eventData)
   }
 }
 ```
+
+TO DO:
+Сделать realime чтение и экспорт данных в MongoDB и/или Elastic
