@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <UserSecretsId>dotnet-OneSTools.TechLog.Exporter.ElasticSearch-146D8E25-B976-4FAB-A231-A91F8DD2EEF5</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NEST" Version="7.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OneSTools.TechLog.Exporter.Core\OneSTools.TechLog.Exporter.Core.csproj" />
+  </ItemGroup>
+</Project>
