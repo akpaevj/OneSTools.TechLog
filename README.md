@@ -24,3 +24,6 @@ private void EventHandler(Dictionary<string, string> eventData)
   }
 }
 ```
+
+TO DO:
+Сделать realime чтение и экспорт данных в MongoDB/Elastic/Clickhouse(возможно динамически выполнять alter table для новых свойств, имитируя таким образом работу с документами, т.е. неструктурированными и ненормализованными данными)
