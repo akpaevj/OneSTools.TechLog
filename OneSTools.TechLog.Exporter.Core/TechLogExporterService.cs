@@ -13,29 +13,32 @@ namespace OneSTools.TechLog.Exporter.Core
 {
     public class TechLogExporterService : BackgroundService
     {
-        private IConfiguration _configuration;
         private readonly ILogger<TechLogExporterService> _logger;
-        private readonly ITechLogFolderReader _techLogFolderReader;
-        private string _logFolder;
-        private int _portion;
+        private readonly ITechLogExporter _techLogExporter;
 
-        public TechLogExporterService(IConfiguration configuration, ILogger<TechLogExporterService> logger, ITechLogFolderReader techLogFolderReader)
+        public TechLogExporterService(ILogger<TechLogExporterService> logger, ITechLogExporter techLogExporter)
         {
-            _configuration = configuration;
             _logger = logger;
-            _techLogFolderReader = techLogFolderReader;
-
-            _logFolder = configuration.GetValue("Exporter:LogFolder", "");
-
-            if (_logFolder == "")
-                throw new Exception("Log folder's path is not set");
-
-            _portion = configuration.GetValue("Exporter", 10000);
+            _techLogExporter = techLogExporter;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await _techLogFolderReader.StartAsync(_logFolder, _portion, true, stoppingToken);
+            try
+            {
+                await _techLogExporter.StartAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogCritical(ex, "Failed to execute TechLogExporter");
+            }
+        }
+
+        public override void Dispose()
+        {
+            _techLogExporter?.Dispose();
+
+            base.Dispose();
         }
     }
 }

@@ -13,6 +13,7 @@
     <LangVersion>8.0</LangVersion>
     <PackageIcon>onestools_icon_nuget.png</PackageIcon>
     <PackageLicenseExpression></PackageLicenseExpression>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -22,6 +23,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="C:\Users\akpaev.e.ENTERPRISE\source\repos\OneSTools.TechLog\LICENSE">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
     <None Include="C:\Users\akpaev.e.ENTERPRISE\source\repos\onestools_icon_nuget.png">
       <Pack>True</Pack>
       <PackagePath></PackagePath>

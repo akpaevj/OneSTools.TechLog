@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Text;
@@ -11,20 +12,36 @@ namespace OneSTools.TechLog
     public class TechLogReader : IDisposable
     {
         private string _logPath;
-        private string _fileName;
+        private string _fileDateTime;
+        private readonly bool _liveMode;
         private FileStream _fileStream;
         private StreamReader _streamReader;
         private StringBuilder _currentData = new StringBuilder();
+        private ManualResetEvent _logFileChanged;
+        private ManualResetEvent _logFileDeleted;
+        private FileSystemWatcher _logFileWatcher;
 
-        public TechLogReader(string logPath)
+        public bool Closed { get; private set; } = true;
+
+        public TechLogReader(string logPath, bool liveMode = false)
         {
             _logPath = logPath;
-            _fileName = Path.GetFileNameWithoutExtension(_logPath);
+            _liveMode = liveMode;
+
+            var fileName = Path.GetFileNameWithoutExtension(_logPath);
+            _fileDateTime = "20" +
+                fileName.Substring(0, 2) +
+                "-" +
+                fileName.Substring(2, 2) +
+                "-" +
+                fileName.Substring(4, 2) +
+                " " +
+                fileName.Substring(6, 2);
         }
 
-        public TechLogItem ReadNextItem(CancellationToken cancellationToken = default)
+        public Dictionary<string, string> ReadNextItem(CancellationToken cancellationToken = default)
         {
-            InitializeStream();
+            Initialize();
 
             var itemData = ReadItemData(cancellationToken);
 
@@ -36,7 +53,7 @@ namespace OneSTools.TechLog
 
         public string ReadItemData(CancellationToken cancellationToken = default)
         {
-            InitializeStream();
+            Initialize();
 
             var currentLine = "";
 
@@ -49,7 +66,31 @@ namespace OneSTools.TechLog
                     if (_currentData.Length > 0)
                         break;
                     else
-                        return null;
+                    {
+                        if (_liveMode)
+                        {
+                            var handles = new WaitHandle[]
+                            {
+                                _logFileChanged,
+                                _logFileDeleted,
+                                cancellationToken.WaitHandle
+                            };
+
+                            var index = WaitHandle.WaitAny(handles);
+
+                            if (index == 1 || index == 2 || index == WaitHandle.WaitTimeout) // File is deleted / reader stopped / timeout
+                            {
+                                Dispose();
+                                Closed = true;
+                                return null;
+                            }
+                            else if (index == 0) // File is changed, continue reading
+                            {
+                                _logFileChanged.Reset();
+                                continue;
+                            }
+                        }
+                    }
                 }
 
                 if (currentLine == null || _currentData.Length > 0 && Regex.IsMatch(currentLine, @"^\d\d:\d\d\.", RegexOptions.Compiled))
@@ -65,53 +106,51 @@ namespace OneSTools.TechLog
             if (currentLine != null)
                 _currentData.AppendLine(currentLine);
 
-            return _strData;
+            return _fileDateTime + ":" + _strData;
         }
 
-        public static TechLogItem ParseItemData(string itemData, CancellationToken cancellationToken = default)
+        public static Dictionary<string, string> ParseItemData(string itemData, CancellationToken cancellationToken = default)
         {
-            var data = new TechLogItem();
+            var item = new Dictionary<string, string>();
 
             int startPosition = 0;
 
             var dtd = ReadNextPropertyWithoutName(itemData, ref startPosition, ',');
             var dtdLength = dtd.Length;
             var dtEndIndex = dtd.LastIndexOf('-');
-            data.DateTime = DateTime.Parse(dtd.Substring(0, dtEndIndex));
+            item["DateTime"] = dtd.Substring(0, dtEndIndex);
             startPosition -= dtdLength - dtEndIndex;
 
-            data.Duration = long.Parse(ReadNextPropertyWithoutName(itemData, ref startPosition, ','));
-            data.Event = ReadNextPropertyWithoutName(itemData, ref startPosition, ',');
-            data.Level = int.Parse(ReadNextPropertyWithoutName(itemData, ref startPosition, ','));
+            item["Duration"] = ReadNextPropertyWithoutName(itemData, ref startPosition, ',');
+            item["Event"] = ReadNextPropertyWithoutName(itemData, ref startPosition, ',');
+            item["Level"] = ReadNextPropertyWithoutName(itemData, ref startPosition, ',');
 
             while (!cancellationToken.IsCancellationRequested)
             {
                 var (Name, Value) = ReadNextProperty(itemData, ref startPosition);
 
-                if (data.Properties.ContainsKey(Name))
+                if (item.ContainsKey(Name))
                 {
-                    data.Properties.Add(GetPropertyName(data, Name, 0), Value);
+                    item.Add(GetPropertyName(item, Name, 0), Value);
                 }
                 else
-                    data.Properties.Add(Name, Value);
+                    item.Add(Name, Value);
 
                 if (startPosition >= itemData.Length)
                     break;
             }
 
-            return data;
+            return item;
         }
 
-        private static string GetPropertyName(TechLogItem item, string name, int number = 0)
+        private static string GetPropertyName(Dictionary<string, string> item, string name, int number = 0)
         {
             var currentName = $"{name}{number}";
 
-            if (!item.Properties.ContainsKey(currentName))
+            if (!item.ContainsKey(currentName))
                 return currentName;
             else
-            {
                 return GetPropertyName(item, name, number + 1);
-            }
         }
 
         private static string ReadNextPropertyWithoutName(string strData, ref int startPosition, char delimiter = ',')
@@ -157,7 +196,68 @@ namespace OneSTools.TechLog
             var value = strData.Substring(startPosition, endPosition - startPosition);
             startPosition = endPosition + 1;
 
-            return (name, value);
+            return (name, value.Trim(new char[] { '\'', '"' }).Trim());
+        }
+
+        private static string GetCleanedSql(string data)
+        {
+            throw new NotImplementedException();
+
+            //// Remove paramaters
+            //int startIndex = data.IndexOf("sp_executesql", StringComparison.OrdinalIgnoreCase);
+
+            //if (startIndex < 0)
+            //    startIndex = 0;
+            //else
+            //    startIndex += 16;
+
+            //int e1 = data.IndexOf("', N'@P", StringComparison.OrdinalIgnoreCase);
+            //if (e1 < 0)
+            //    e1 = data.Length;
+
+            //var e2 = data.IndexOf("p_0:", StringComparison.OrdinalIgnoreCase);
+            //if (e2 < 0)
+            //    e2 = data.Length;
+
+            //var endIndex = Math.Min(e1, e2);
+
+            //StringBuilder result = new StringBuilder(data[startIndex..endIndex]);
+
+            //// Remove temp table names
+            //while (true)
+            //{
+            //    var ttsi = result.IndexOf("#tt");
+
+            //    if (ttsi >= 0)
+            //    {
+            //        var ttsei = ttsi + 2;
+
+            //        // Read temp table number
+            //        while (true)
+            //        {
+            //            if (char.IsDigit(result[ttsei]))
+            //                ttsei++;
+            //            else
+            //                break;
+            //        }
+            //    }
+            //    else
+            //        break;
+            //}
+
+            //return result.ToString();
+        }
+
+        private static string GetSqlHash(string sql)
+        {
+            throw new NotImplementedException();
+        }
+
+        private void Initialize()
+        {
+            InitializeStream();
+
+            InitializeWatcher();
         }
 
         private void InitializeStream()
@@ -166,18 +266,47 @@ namespace OneSTools.TechLog
             {
                 _fileStream = new FileStream(_logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 _streamReader = new StreamReader(_fileStream);
+
+                Closed = false;
             }
+        }
+
+        private void InitializeWatcher()
+        {
+            if (_liveMode && _logFileWatcher == null)
+            {
+                _logFileChanged = new ManualResetEvent(false);
+                _logFileDeleted = new ManualResetEvent(false);
+
+                _logFileWatcher = new FileSystemWatcher(Path.GetDirectoryName(_logPath), Path.GetFileName(_logPath))
+                {
+                    NotifyFilter = NotifyFilters.CreationTime | NotifyFilters.LastWrite | NotifyFilters.FileName
+                };
+                _logFileWatcher.Changed += _logFileWatcher_Changed;
+                _logFileWatcher.Deleted += _logFileWatcher_Deleted;
+                _logFileWatcher.EnableRaisingEvents = true;
+            }
+        }
+
+        private void _logFileWatcher_Changed(object sender, FileSystemEventArgs e)
+        {
+            if (e.ChangeType == WatcherChangeTypes.Changed)
+                _logFileChanged.Set();
+        }
+
+        private void _logFileWatcher_Deleted(object sender, FileSystemEventArgs e)
+        {
+            if (e.ChangeType == WatcherChangeTypes.Deleted)
+                _logFileDeleted.Set();
         }
 
         public void Dispose()
         {
-            if (_fileStream == null)
-            {
-                _streamReader.Dispose();
-
-                _fileStream = null;
-                _streamReader = null;
-            }
+            _streamReader?.Dispose();
+            _fileStream = null;
+            _logFileWatcher?.Dispose();
+            _logFileChanged?.Dispose();
+            _logFileDeleted?.Dispose();
         }
     }
 }
