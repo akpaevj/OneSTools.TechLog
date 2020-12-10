@@ -9,7 +9,7 @@
     <PackageProjectUrl>https://github.com/akpaevj/OneSTools.TechLog</PackageProjectUrl>
     <Copyright>Akpaev Evgeny</Copyright>
     <Description>Библиотека для парсинга технологического журнала 1С</Description>
-    <Version>2.0.0</Version>
+    <Version>2.1.0</Version>
     <LangVersion>8.0</LangVersion>
     <PackageIcon>onestools_icon_nuget.png</PackageIcon>
     <PackageLicenseExpression></PackageLicenseExpression>
@@ -31,6 +31,10 @@
       <Pack>True</Pack>
       <PackagePath></PackagePath>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Threading.Tasks.Dataflow" Version="5.0.0" />
   </ItemGroup>
 
 </Project>

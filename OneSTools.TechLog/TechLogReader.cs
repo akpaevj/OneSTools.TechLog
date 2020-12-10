@@ -1,312 +1,160 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
+using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace OneSTools.TechLog
 {
     public class TechLogReader : IDisposable
     {
-        private string _logPath;
-        private string _fileDateTime;
-        private readonly bool _liveMode;
-        private FileStream _fileStream;
-        private StreamReader _streamReader;
-        private StringBuilder _currentData = new StringBuilder();
-        private ManualResetEvent _logFileChanged;
-        private ManualResetEvent _logFileDeleted;
-        private FileSystemWatcher _logFileWatcher;
+        private readonly TechLogReaderSettings _settings;
+        private ActionBlock<string> _readBlock;
+        private TransformBlock<TechLogItem, TechLogItem> _tunnelBlock;
+        private CancellationToken _cancellationToken;
+        private Timer _flushTimer;
+        private FileSystemWatcher _logFoldersWatcher;
+        private bool disposedValue;
 
-        public bool Closed { get; private set; } = true;
-
-        public TechLogReader(string logPath, bool liveMode = false)
+        public TechLogReader(TechLogReaderSettings settings)
         {
-            _logPath = logPath;
-            _liveMode = liveMode;
-
-            var fileName = Path.GetFileNameWithoutExtension(_logPath);
-            _fileDateTime = "20" +
-                fileName.Substring(0, 2) +
-                "-" +
-                fileName.Substring(2, 2) +
-                "-" +
-                fileName.Substring(4, 2) +
-                " " +
-                fileName.Substring(6, 2);
+            _settings = settings;
         }
 
-        public Dictionary<string, string> ReadNextItem(CancellationToken cancellationToken = default)
+        public async Task ReadAsync(Action<TechLogItem[]> processor, CancellationToken cancellationToken = default)
         {
-            Initialize();
+            _cancellationToken = cancellationToken;
 
-            var itemData = ReadItemData(cancellationToken);
+            var processorBlock = new ActionBlock<TechLogItem[]>(processor, new ExecutionDataflowBlockOptions() { BoundedCapacity = _settings.BatchFactor });
 
-            if (itemData == null)
-                return null;
+            var batchBlock = new BatchBlock<TechLogItem>(_settings.BatchSize);
+            batchBlock.LinkTo(processorBlock, new DataflowLinkOptions() { PropagateCompletion = true });
 
-            return ParseItemData(itemData, cancellationToken);
-        }
+            _readBlock = new ActionBlock<string>(logFolder => ReadLogFolder(logFolder, batchBlock, cancellationToken), new ExecutionDataflowBlockOptions() { CancellationToken = cancellationToken });
 
-        public string ReadItemData(CancellationToken cancellationToken = default)
-        {
-            Initialize();
-
-            var currentLine = "";
-
-            while (!cancellationToken.IsCancellationRequested)
+            if (_settings.LiveMode)
             {
-                currentLine = _streamReader.ReadLine();
+                var timeoutMs = _settings.ReadingTimeout * 1000;
 
-                if (currentLine == null)
+                _flushTimer = new Timer(_ => batchBlock.TriggerBatch(), null, timeoutMs, Timeout.Infinite);
+
+                _tunnelBlock = new TransformBlock<TechLogItem, TechLogItem>(item =>
                 {
-                    if (_currentData.Length > 0)
-                        break;
-                    else
-                    {
-                        if (_liveMode)
-                        {
-                            var handles = new WaitHandle[]
-                            {
-                                _logFileChanged,
-                                _logFileDeleted,
-                                cancellationToken.WaitHandle
-                            };
+                    _flushTimer.Change(timeoutMs, Timeout.Infinite);
 
-                            var index = WaitHandle.WaitAny(handles);
+                    return item;
+                });
+                _tunnelBlock.LinkTo(batchBlock, new DataflowLinkOptions() { PropagateCompletion = true });
 
-                            if (index == 1 || index == 2 || index == WaitHandle.WaitTimeout) // File is deleted / reader stopped / timeout
-                            {
-                                Dispose();
-                                Closed = true;
-                                return null;
-                            }
-                            else if (index == 0) // File is changed, continue reading
-                            {
-                                _logFileChanged.Reset();
-                                continue;
-                            }
-                        }
-                    }
-                }
-
-                if (currentLine == null || _currentData.Length > 0 && Regex.IsMatch(currentLine, @"^\d\d:\d\d\.", RegexOptions.Compiled))
-                    break;
-                else
-                    _currentData.AppendLine(currentLine);
+                _ = _readBlock.Completion.ContinueWith(c => _tunnelBlock.Complete());
             }
-
-            var _strData = _currentData.ToString().Trim();
-
-            _currentData.Clear();
-
-            if (currentLine != null)
-                _currentData.AppendLine(currentLine);
-
-            return _fileDateTime + ":" + _strData;
-        }
-
-        public static Dictionary<string, string> ParseItemData(string itemData, CancellationToken cancellationToken = default)
-        {
-            var item = new Dictionary<string, string>();
-
-            int startPosition = 0;
-
-            var dtd = ReadNextPropertyWithoutName(itemData, ref startPosition, ',');
-            var dtdLength = dtd.Length;
-            var dtEndIndex = dtd.LastIndexOf('-');
-            item["DateTime"] = dtd.Substring(0, dtEndIndex);
-            startPosition -= dtdLength - dtEndIndex;
-
-            item["Duration"] = ReadNextPropertyWithoutName(itemData, ref startPosition, ',');
-            item["Event"] = ReadNextPropertyWithoutName(itemData, ref startPosition, ',');
-            item["Level"] = ReadNextPropertyWithoutName(itemData, ref startPosition, ',');
-
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                var (Name, Value) = ReadNextProperty(itemData, ref startPosition);
-
-                if (item.ContainsKey(Name))
-                {
-                    item.Add(GetPropertyName(item, Name, 0), Value);
-                }
-                else
-                    item.Add(Name, Value);
-
-                if (startPosition >= itemData.Length)
-                    break;
-            }
-
-            return item;
-        }
-
-        private static string GetPropertyName(Dictionary<string, string> item, string name, int number = 0)
-        {
-            var currentName = $"{name}{number}";
-
-            if (!item.ContainsKey(currentName))
-                return currentName;
             else
-                return GetPropertyName(item, name, number + 1);
+                _ = _readBlock.Completion.ContinueWith(c => batchBlock.Complete());
+
+            foreach (var logFolder in GetExistingLogFolders())
+                Post(logFolder, _readBlock, cancellationToken);
+
+            if (_settings.LiveMode)
+                InitializeWatcher();
+            else
+                _readBlock.Complete();
+
+            await processorBlock.Completion;
         }
 
-        private static string ReadNextPropertyWithoutName(string strData, ref int startPosition, char delimiter = ',')
+        private void ReadLogFolder(string logFolder, ITargetBlock<TechLogItem> nextBlock, CancellationToken cancellationToken = default)
         {
-            var endPosition = strData.IndexOf(delimiter, startPosition);
-            var value = strData.Substring(startPosition, endPosition - startPosition);
-            startPosition = endPosition + 1;
-
-            return value;
-        }
-
-        private static (string Name, string Value) ReadNextProperty(string strData, ref int startPosition)
-        {
-            var equalPosition = strData.IndexOf('=', startPosition);
-            var name = strData.Substring(startPosition, equalPosition - startPosition);
-            startPosition = equalPosition + 1;
-
-            if (startPosition == strData.Length)
-                return (name, "");
-
-            var nextChar = strData[startPosition];
-
-            int endPosition;
-            switch (nextChar)
+            var settings = new TechLogFolderReaderSettings
             {
-                case '\'':
-                    endPosition = strData.IndexOf("\',", startPosition);
-                    break;
-                case ',':
-                    startPosition++;
-                    return (name, "");
-                case '"':
-                    endPosition = strData.IndexOf("\",", startPosition);
-                    break;
-                default:
-                    endPosition = strData.IndexOf(',', startPosition);
-                    break;
-            }
+                Folder = logFolder,
+                AdditionalProperty = _settings.AdditionalProperty,
+                LiveMode = _settings.LiveMode,
+                ReadingTimeout = _settings.ReadingTimeout
+            };
 
-            if (endPosition < 0)
-                endPosition = strData.Length;
+            using var reader = new TechLogFolderReader(settings);
 
-            var value = strData.Substring(startPosition, endPosition - startPosition);
-            startPosition = endPosition + 1;
+            TechLogItem item = null;
 
-            return (name, value.Trim(new char[] { '\'', '"' }).Trim());
-        }
-
-        private static string GetCleanedSql(string data)
-        {
-            throw new NotImplementedException();
-
-            //// Remove paramaters
-            //int startIndex = data.IndexOf("sp_executesql", StringComparison.OrdinalIgnoreCase);
-
-            //if (startIndex < 0)
-            //    startIndex = 0;
-            //else
-            //    startIndex += 16;
-
-            //int e1 = data.IndexOf("', N'@P", StringComparison.OrdinalIgnoreCase);
-            //if (e1 < 0)
-            //    e1 = data.Length;
-
-            //var e2 = data.IndexOf("p_0:", StringComparison.OrdinalIgnoreCase);
-            //if (e2 < 0)
-            //    e2 = data.Length;
-
-            //var endIndex = Math.Min(e1, e2);
-
-            //StringBuilder result = new StringBuilder(data[startIndex..endIndex]);
-
-            //// Remove temp table names
-            //while (true)
-            //{
-            //    var ttsi = result.IndexOf("#tt");
-
-            //    if (ttsi >= 0)
-            //    {
-            //        var ttsei = ttsi + 2;
-
-            //        // Read temp table number
-            //        while (true)
-            //        {
-            //            if (char.IsDigit(result[ttsei]))
-            //                ttsei++;
-            //            else
-            //                break;
-            //        }
-            //    }
-            //    else
-            //        break;
-            //}
-
-            //return result.ToString();
-        }
-
-        private static string GetSqlHash(string sql)
-        {
-            throw new NotImplementedException();
-        }
-
-        private void Initialize()
-        {
-            InitializeStream();
-
-            InitializeWatcher();
-        }
-
-        private void InitializeStream()
-        {
-            if (_fileStream == null)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                _fileStream = new FileStream(_logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                _streamReader = new StreamReader(_fileStream);
+                try
+                {
+                    item = reader.ReadNextItem(cancellationToken);
+                }
+                catch (LogReaderTimeoutException)
+                {
+                    continue;
+                }
+                catch
+                {
+                    throw;
+                }
 
-                Closed = false;
+                if (item is null)
+                    break;
+                else
+                    Post(item, nextBlock, cancellationToken);
             }
         }
+
+        private static void Post<T>(T data, ITargetBlock<T> block, CancellationToken cancellationToken = default)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if (block.Post(data))
+                    break;
+            }
+        }
+
+        private string[] GetExistingLogFolders()
+            => Directory.GetDirectories(_settings.LogFolder);
 
         private void InitializeWatcher()
         {
-            if (_liveMode && _logFileWatcher == null)
+            _logFoldersWatcher = new FileSystemWatcher(_settings.LogFolder)
             {
-                _logFileChanged = new ManualResetEvent(false);
-                _logFileDeleted = new ManualResetEvent(false);
+                NotifyFilter = NotifyFilters.CreationTime | NotifyFilters.LastWrite | NotifyFilters.FileName
+            };
+            _logFoldersWatcher.Created += LogFileWatcherEvent;
+            _logFoldersWatcher.EnableRaisingEvents = true;
+        }
 
-                _logFileWatcher = new FileSystemWatcher(Path.GetDirectoryName(_logPath), Path.GetFileName(_logPath))
+        private void LogFileWatcherEvent(object sender, FileSystemEventArgs e)
+        {
+            // new log folder has been created
+            if (e.ChangeType == WatcherChangeTypes.Created && File.GetAttributes(e.FullPath).HasFlag(FileAttributes.Directory))
+                Post(e.FullPath, _readBlock, _cancellationToken);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
                 {
-                    NotifyFilter = NotifyFilters.CreationTime | NotifyFilters.LastWrite | NotifyFilters.FileName
-                };
-                _logFileWatcher.Changed += _logFileWatcher_Changed;
-                _logFileWatcher.Deleted += _logFileWatcher_Deleted;
-                _logFileWatcher.EnableRaisingEvents = true;
+                    
+                }
+
+                _logFoldersWatcher?.Dispose();
+
+                disposedValue = true;
             }
         }
 
-        private void _logFileWatcher_Changed(object sender, FileSystemEventArgs e)
+        ~TechLogReader()
         {
-            if (e.ChangeType == WatcherChangeTypes.Changed)
-                _logFileChanged.Set();
-        }
-
-        private void _logFileWatcher_Deleted(object sender, FileSystemEventArgs e)
-        {
-            if (e.ChangeType == WatcherChangeTypes.Deleted)
-                _logFileDeleted.Set();
+            Dispose(disposing: false);
         }
 
         public void Dispose()
         {
-            _streamReader?.Dispose();
-            _fileStream = null;
-            _logFileWatcher?.Dispose();
-            _logFileChanged?.Dispose();
-            _logFileDeleted?.Dispose();
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }
