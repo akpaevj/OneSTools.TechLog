@@ -3,6 +3,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace OneSTools.TechLogTestApp
 {
@@ -14,6 +15,7 @@ namespace OneSTools.TechLogTestApp
             var folderReaderSettings = new TechLogReaderSettings()
             {
                 LogFolder = @"C:\Users\akpaev.e.ENTERPRISE\Desktop\TechLog",
+                Properties = new List<string>() { "Sql", "Context" },
                 AdditionalProperty = AdditionalProperty.SqlHash | AdditionalProperty.FirstContextLine | AdditionalProperty.LastContextLine | AdditionalProperty.EndPosition,
                 BatchSize = 100,
                 BatchFactor = 2,

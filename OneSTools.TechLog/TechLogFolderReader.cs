@@ -110,7 +110,7 @@ namespace OneSTools.TechLog
             {
                 _logReader?.Dispose();
 
-                _logReader = new TechLogFileReader(FilePath, _settings.AdditionalProperty);
+                _logReader = new TechLogFileReader(FilePath, _settings.Properties, _settings.AdditionalProperty);
 
                 return true;
             }

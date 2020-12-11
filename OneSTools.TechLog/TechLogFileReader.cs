@@ -13,6 +13,7 @@ namespace OneSTools.TechLog
     public class TechLogFileReader : IDisposable
     {
         private readonly string _fileDateTime;
+        private readonly List<string> _properties;
         private readonly AdditionalProperty _additionalProperty;
         private FileStream _fileStream;
         private StreamReader _streamReader;
@@ -27,9 +28,10 @@ namespace OneSTools.TechLog
             set => _streamReader.SetPosition(value);
         }
 
-        public TechLogFileReader(string logPath, AdditionalProperty additionalProperty)
+        public TechLogFileReader(string logPath, List<string> properties, AdditionalProperty additionalProperty)
         {
             LogPath = logPath;
+            _properties = properties;
             _additionalProperty = additionalProperty;
 
             var fileName = Path.GetFileNameWithoutExtension(LogPath);
@@ -106,19 +108,33 @@ namespace OneSTools.TechLog
             item.TrySetPropertyValue("Event", ReadNextPropertyWithoutName(rawItem, ref startPosition, ','));
             item.TrySetPropertyValue("Level", ReadNextPropertyWithoutName(rawItem, ref startPosition, ','));
 
-            while (!cancellationToken.IsCancellationRequested)
+            if (_properties.Count > 0)
             {
-                var (Name, Value) = ReadNextProperty(rawItem, ref startPosition);
+                foreach (var property in _properties)
+                {
+                    var value = ReadPropertyValue(rawItem, property);
 
-                if (string.IsNullOrEmpty(Name))
-                    break;
+                    if (!(value is null))
+                        if (!item.TrySetPropertyValue(property, value))
+                            item.TrySetPropertyValue(GetPropertyName(item, property, 0), value);
+                }
+            }
+            else
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var (Name, Value) = ReadNextProperty(rawItem, ref startPosition);
 
-                // Property with the same name already can exist, so we have to get a new name for the value
-                if (!item.TrySetPropertyValue(Name, Value))
-                    item.TrySetPropertyValue(GetPropertyName(item, Name, 0), Value);
+                    if (string.IsNullOrEmpty(Name))
+                        break;
 
-                if (startPosition >= rawItem.Length)
-                    break;
+                    // Property with the same name already can exist, so we have to get a new name for the value
+                    if (!item.TrySetPropertyValue(Name, Value))
+                        item.TrySetPropertyValue(GetPropertyName(item, Name, 0), Value);
+
+                    if (startPosition >= rawItem.Length)
+                        break;
+                }
             }
 
             SetAdditionalProperties(item);
@@ -160,6 +176,13 @@ namespace OneSTools.TechLog
             if (startPosition == strData.Length)
                 return (name, "");
 
+            var value = GetPropertyValue(strData, ref startPosition);
+
+            return (name, value);
+        }
+
+        private string GetPropertyValue(string strData, ref int startPosition)
+        {
             var nextChar = strData[startPosition];
 
             int endPosition;
@@ -170,7 +193,7 @@ namespace OneSTools.TechLog
                     break;
                 case ',':
                     startPosition++;
-                    return (name, "");
+                    return "";
                 case '"':
                     endPosition = strData.IndexOf('"', startPosition + 1);
                     break;
@@ -185,7 +208,21 @@ namespace OneSTools.TechLog
             var value = strData[startPosition..endPosition];
             startPosition = endPosition + 1;
 
-            return (name, value.Trim(new char[] { '\'', '"' }).Trim());
+            return value.Trim(new char[] { '\'', '"' }).Trim();
+        }
+
+        private string ReadPropertyValue(string strData, string name)
+        {
+            var index = strData.IndexOf($",{name}=");
+
+            if (index >= 0)
+            {
+                int pos = index + name.Length + 2;
+
+                return GetPropertyValue(strData, ref pos);
+            }
+            else
+                return null;
         }
 
         private void SetAdditionalProperties(TechLogItem item)

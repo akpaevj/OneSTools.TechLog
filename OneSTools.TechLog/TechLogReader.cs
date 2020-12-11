@@ -71,6 +71,7 @@ namespace OneSTools.TechLog
             var settings = new TechLogFolderReaderSettings
             {
                 Folder = logFolder,
+                Properties = _settings.Properties,
                 AdditionalProperty = _settings.AdditionalProperty,
                 LiveMode = _settings.LiveMode,
                 ReadingTimeout = _settings.ReadingTimeout
