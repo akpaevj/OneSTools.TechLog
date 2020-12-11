@@ -241,7 +241,7 @@ namespace OneSTools.TechLog
 
         private bool TrySetCleanSqlProperty(TechLogItem item)
         {
-            if (NeedAdditionalProperty(AdditionalProperty.CleanedSql) && item.TryGetPropertyValue("Sql", out var sql))
+            if (NeedAdditionalProperty(AdditionalProperty.CleanSql) && item.TryGetPropertyValue("Sql", out var sql))
             {
                 item["CleanSql"] = ClearSql(sql);
 
@@ -315,10 +315,10 @@ namespace OneSTools.TechLog
 
         private string GetFirstContextLine(string context)
         {
-            var index = context.IndexOf("\n");
+            var index = context.IndexOf('\n');
 
             if (index > 0)
-                return context[0..index];
+                return context[0..index].Trim();
             else
                 return context;
         }
@@ -337,10 +337,10 @@ namespace OneSTools.TechLog
 
         private string GetLastContextLine(string context)
         {
-            var index = context.LastIndexOf("\t");
+            var index = context.LastIndexOf('\t');
 
             if (index > 0)
-                return context[(index + 1)..];
+                return context[(index + 1)..].Trim();
             else
                 return context;
         }

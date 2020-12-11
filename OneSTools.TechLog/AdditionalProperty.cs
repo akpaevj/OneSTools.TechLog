@@ -8,7 +8,7 @@ namespace OneSTools.TechLog
     {
         None,
         SqlHash,
-        CleanedSql,
+        CleanSql,
         FirstContextLine,
         LastContextLine,
         EndPosition

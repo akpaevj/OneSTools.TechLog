@@ -15,8 +15,8 @@ namespace OneSTools.TechLogTestApp
             var folderReaderSettings = new TechLogReaderSettings()
             {
                 LogFolder = @"C:\Users\akpaev.e.ENTERPRISE\Desktop\TechLog",
-                Properties = new List<string>() { "Sql", "Context" },
-                AdditionalProperty = AdditionalProperty.SqlHash | AdditionalProperty.FirstContextLine | AdditionalProperty.LastContextLine | AdditionalProperty.EndPosition,
+                //Properties = new List<string>() { "Sql", "Context" },
+                AdditionalProperty = AdditionalProperty.FirstContextLine,
                 BatchSize = 100,
                 BatchFactor = 2,
                 LiveMode = false
