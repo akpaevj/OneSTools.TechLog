@@ -16,8 +16,8 @@ namespace OneSTools.TechLogTestApp
             {
                 LogFolder = @"C:\Users\akpaev.e.ENTERPRISE\Desktop\TechLog",
                 //Properties = new List<string>() { "Sql", "Context" },
-                AdditionalProperty = AdditionalProperty.FirstContextLine,
-                BatchSize = 100,
+                //AdditionalProperty = AdditionalProperty.FirstContextLine,
+                BatchSize = 1000,
                 BatchFactor = 2,
                 LiveMode = false
             };
@@ -39,7 +39,7 @@ namespace OneSTools.TechLogTestApp
 
             stopwatch.Stop();
 
-            Console.WriteLine($"Read {count} items for {stopwatch.ElapsedMilliseconds / 1000} s.");
+            Console.WriteLine($"Read {count} items for {stopwatch.ElapsedMilliseconds} ms.");
             Console.ReadKey();
 
             // Assign

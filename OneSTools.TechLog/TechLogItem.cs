@@ -18,6 +18,8 @@ namespace OneSTools.TechLog
 
         public IEnumerable<string> Properties => _properties.Keys;
 
+        public Dictionary<string, string> KeyValuePairs => _properties;
+
         public bool HasProperty(string property)
             => _properties.ContainsKey(property);
 

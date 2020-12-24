@@ -9,7 +9,7 @@
     <PackageProjectUrl>https://github.com/akpaevj/OneSTools.TechLog</PackageProjectUrl>
     <Copyright>Akpaev Evgeny</Copyright>
     <Description>Библиотека для парсинга технологического журнала 1С</Description>
-    <Version>2.1.2</Version>
+    <Version>2.1.3</Version>
     <LangVersion>8.0</LangVersion>
     <PackageIcon>onestools_icon_nuget.png</PackageIcon>
     <PackageLicenseExpression></PackageLicenseExpression>
@@ -18,6 +18,11 @@
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <DefineConstants>TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
