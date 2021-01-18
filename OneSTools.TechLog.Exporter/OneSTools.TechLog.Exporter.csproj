@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <UserSecretsId>dotnet-TechLogExporter-E9ACEC9F-C3D8-45CE-A879-75285C05F850</UserSecretsId>
+    <AssemblyName>OneSTools.TechLog.Exporter</AssemblyName>
+    <RootNamespace>OneSTools.TechLog.Exporter</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="5.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="5.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OneSTools.TechLog.Exporter.ClickHouse\OneSTools.TechLog.Exporter.ClickHouse.csproj" />
+    <ProjectReference Include="..\OneSTools.TechLog.Exporter.Core\OneSTools.TechLog.Exporter.Core.csproj" />
+  </ItemGroup>
+</Project>

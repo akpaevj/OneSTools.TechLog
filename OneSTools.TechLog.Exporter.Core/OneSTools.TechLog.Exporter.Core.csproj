@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <UserSecretsId>dotnet-OneSTools.TechLog.Exporter-7CF8C857-9ECC-47C0-BF6E-3CE1B17BE9C4</UserSecretsId>
+    <OutputType>Library</OutputType>
+    <AssemblyName>OneSTools.TechLog.Exporter.Core</AssemblyName>
+    <RootNamespace>OneSTools.TechLog.Exporter.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClickHouse.Client" Version="3.0.0.357" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OneSTools.TechLog\OneSTools.TechLog.csproj" />
+  </ItemGroup>
+</Project>

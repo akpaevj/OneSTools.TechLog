@@ -8,6 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
 using System.IO.MemoryMappedFiles;
+using System.Linq;
+using System.Collections.ObjectModel;
 
 namespace OneSTools.TechLog
 {
@@ -21,28 +23,39 @@ namespace OneSTools.TechLog
         private long _lastEventEndPosition = -1;
         private bool disposedValue;
 
-        public string LogPath { get; private set; }
+        public string FilePath  { get; private set; } = "";
+        public string FolderName { get; private set; } = "";
+        public string FileName { get; private set; } = "";
         public long Position
         {
-            get => _streamReader.GetPosition();
-            set => _streamReader.SetPosition(value);
+            get
+            {
+                InitializeStream();
+                return _streamReader.GetPosition();
+            }
+            set
+            {
+                InitializeStream();
+                _streamReader.SetPosition(value);
+            }
         }
 
-        public TechLogFileReader(string logPath, AdditionalProperty additionalProperty)
+        public TechLogFileReader(string filePath, AdditionalProperty additionalProperty)
         {
-            LogPath = logPath;
+            FilePath = filePath;
+            FolderName = Directory.GetParent(FilePath).Name;
+            FileName = Path.GetFileName(FilePath);
+
             _additionalProperty = additionalProperty;
 
-            var fileName = Path.GetFileNameWithoutExtension(LogPath);
-
             _fileDateTime = "20" +
-                fileName.Substring(0, 2) +
+                FileName.Substring(0, 2) +
                 "-" +
-                fileName.Substring(2, 2) +
+                FileName.Substring(2, 2) +
                 "-" +
-                fileName.Substring(4, 2) +
+                FileName.Substring(4, 2) +
                 " " +
-                fileName.Substring(6, 2);
+                FileName.Substring(6, 2);
         }
 
         public TechLogItem ReadNextItem(CancellationToken cancellationToken = default)
@@ -54,7 +67,16 @@ namespace OneSTools.TechLog
             if (rawItem == null)
                 return null;
 
-            return ParseRawItem(rawItem.Trim(), cancellationToken);
+            try
+            {
+                var parsed = ParseRawItem(rawItem.Trim(), cancellationToken);
+
+                return parsed;
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
         }
 
         private ReadOnlySpan<char> ReadRawItem(CancellationToken cancellationToken = default)
@@ -72,10 +94,10 @@ namespace OneSTools.TechLog
                     break;
                 else
                 {
-                    _data.AppendLine(line);
+                    if (line.Length > 0)
+                        _data.AppendLine(line);
 
-                    if (NeedAdditionalProperty(AdditionalProperty.EndPosition))
-                        _lastEventEndPosition = Position;
+                    _lastEventEndPosition = Position;
                 }
             }
 
@@ -95,27 +117,37 @@ namespace OneSTools.TechLog
 
         private TechLogItem ParseRawItem(ReadOnlySpan<char> rawItem, CancellationToken cancellationToken = default)
         {
-            var item = new TechLogItem();
+            var properties = new Dictionary<string, string>();
+            
+            var item = new TechLogItem
+            {
+                FolderName = FolderName,
+                FileName = FileName,
+                EndPosition = _lastEventEndPosition
+            };
+
+            // set event end position no new line
+            _lastEventEndPosition = Position;
 
             var position = 0;
 
             var dtd = ReadNextPropertyWithoutName(rawItem, ',');
             var dtdLength = dtd.Length;
             var dtEndIndex = dtd.LastIndexOf('-');
-            item.TrySetPropertyValue("DateTime", dtd[0..dtEndIndex].ToString());
+            item.DateTime = DateTime.Parse(dtd[0..dtEndIndex]);
             position = dtEndIndex + 1;
 
             var duration = ReadNextPropertyWithoutName(rawItem[position..], ',');
             position += duration.Length + 1;
-            item.TrySetPropertyValue("Duration", duration.ToString());
+            item.Duration = long.Parse(duration);
 
             var eventName = ReadNextPropertyWithoutName(rawItem[position..], ',');
             position += eventName.Length + 1;
-            item.TrySetPropertyValue("Event", eventName.ToString());
+            item.EventName = eventName.ToString();
 
             var level = ReadNextPropertyWithoutName(rawItem[position..], ',');
             position += level.Length + 1;
-            item.TrySetPropertyValue("Level", level.ToString());
+            item.Level = int.Parse(level);
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -133,14 +165,14 @@ namespace OneSTools.TechLog
                 position += propertyValue.Length + 1;
                 propertyValue = propertyValue.Trim(new char[] { '\'', '"' }).Trim();
 
-                if (!item.TrySetPropertyValue(propertyName.ToString(), propertyValue.ToString()))
-                    item.TrySetPropertyValue(GetPropertyName(item, propertyName, 0), propertyValue.ToString());
+                if (!item.AllProperties.TryAdd(propertyName.ToString(), propertyValue.ToString()))
+                    item.AllProperties.TryAdd(GetPropertyName(properties, propertyName, 0), propertyValue.ToString());
 
                 if (position >= rawItem.Length)
                     break;
             }
 
-            SetAdditionalProperties(item);
+            SetAdditionalProperties(item.AllProperties);
 
             return item;
         }
@@ -159,13 +191,23 @@ namespace OneSTools.TechLog
         {
             var nextChar = strData[0];
 
-            int endIndex = nextChar switch
+            int endIndex;
+            if (nextChar == ',')
+                endIndex = 0;
+            else if (nextChar == '\'')
             {
-                '\'' => strData[1..].IndexOf('\'') + 2,
-                '"' => strData[1..].IndexOf('"') + 2,
-                ',' => 0,
-                _ => strData.IndexOf(','),
-            };
+                var str = strData.ToString();
+                str = str.Replace("''", "••");
+                endIndex = str[1..].IndexOf('\'') + 2;
+            }
+            else if (nextChar == '"')
+            {
+                var str = strData.ToString();
+                str = str.Replace("\"\"", "••");
+                endIndex = str[1..].IndexOf('"') + 2;
+            }
+            else
+                endIndex = strData.IndexOf(',');
 
             if (endIndex == -1)
                 endIndex = strData.Length;
@@ -178,14 +220,14 @@ namespace OneSTools.TechLog
         private bool NeedAdditionalProperty(AdditionalProperty additionalProperty)
             => (_additionalProperty & additionalProperty) == additionalProperty;
 
-        private string GetPropertyName(TechLogItem item, ReadOnlySpan<char> name, int number = 0)
+        private string GetPropertyName(Dictionary<string, string> properties, ReadOnlySpan<char> name, int number = 0)
         {
             var currentName = $"{name.ToString()}{number}";
 
-            if (!item.HasProperty(currentName))
+            if (!properties.ContainsKey(currentName))
                 return currentName;
             else
-                return GetPropertyName(item, name, number + 1);
+                return GetPropertyName(properties, name, number + 1);
         }
 
         private ReadOnlySpan<char> ReadNextPropertyWithoutName(ReadOnlySpan<char> strData, char delimiter = ',')
@@ -196,86 +238,19 @@ namespace OneSTools.TechLog
             return data;
         }
 
-        private (string Name, string Value) ReadNextProperty(ReadOnlySpan<char> strData, ref int startPosition)
+        private void SetAdditionalProperties(Dictionary<string, string> properties)
         {
-            var equalPosition = strData[startPosition..].IndexOf('=');
-            if (equalPosition < 0)
-                return ("", "");
-
-            var name = strData[startPosition..equalPosition];
-            startPosition = equalPosition + 1;
-
-            if (startPosition == strData.Length)
-                return (name.ToString(), "");
-
-            var value = GetPropertyValue(strData, ref startPosition);
-
-            return (name.ToString(), value.ToString());
+            TrySetCleanSqlProperty(properties);
+            TrySetSqlHashProperty(properties);
+            TrySetFirstContextLineProperty(properties);
+            TrySetLastContextLineProperty(properties);
         }
 
-        private ReadOnlySpan<char> GetPropertyValue(ReadOnlySpan<char> strData, ref int startPosition)
+        private bool TrySetCleanSqlProperty(Dictionary<string, string> properties)
         {
-            var nextChar = strData[startPosition];
-
-            int endPosition;
-            switch (nextChar)
+            if (NeedAdditionalProperty(AdditionalProperty.CleanSql) && properties.TryGetValue("Sql", out var sql))
             {
-                case '\'':
-                    endPosition = strData[(startPosition + 1)..].IndexOf('\'');
-                    break;
-                case ',':
-                    startPosition++;
-                    return "";
-                case '"':
-                    endPosition = strData[(startPosition + 1)..].IndexOf('"');
-                    break;
-                default:
-                    endPosition = strData[startPosition..].IndexOf(',');
-                    break;
-            }
-
-            if (endPosition < 0)
-                endPosition = strData.Length;
-
-            var value = strData[startPosition..endPosition];
-            startPosition = endPosition + 1 + startPosition;
-
-            return value.Trim(new char[] { '\'', '"' }).Trim();
-        }
-
-        private string ReadPropertyValue(ReadOnlySpan<char> strData, string name)
-        {
-            var index = strData.IndexOf($",{name}=");
-
-            if (index >= 0)
-            {
-                int pos = index + name.Length + 2;
-
-                return GetPropertyValue(strData, ref pos).ToString();
-            }
-            else
-                return null;
-        }
-
-        private void SetAdditionalProperties(TechLogItem item)
-        {
-            TrySetCleanSqlProperty(item);
-            TrySetSqlHashProperty(item);
-            TrySetFirstContextLineProperty(item);
-            TrySetLastContextLineProperty(item);
-
-            if (NeedAdditionalProperty(AdditionalProperty.EndPosition))
-            {
-                item.EndPosition = _lastEventEndPosition;
-                _lastEventEndPosition = Position;
-            }
-        }
-
-        private bool TrySetCleanSqlProperty(TechLogItem item)
-        {
-            if (NeedAdditionalProperty(AdditionalProperty.CleanSql) && item.TryGetPropertyValue("Sql", out var sql))
-            {
-                item["CleanSql"] = ClearSql(sql).ToString();
+                properties.Add("CleanSql", ClearSql(sql).ToString());
 
                 return true;
             }
@@ -309,15 +284,15 @@ namespace OneSTools.TechLog
             return result;
         }
 
-        private bool TrySetSqlHashProperty(TechLogItem item)
+        private bool TrySetSqlHashProperty(Dictionary<string, string> properties)
         {
             bool needCalculateHash = NeedAdditionalProperty(AdditionalProperty.SqlHash);
 
-            if (!item.HasProperty("CleanSql"))
-                needCalculateHash = TrySetCleanSqlProperty(item);
+            if (!properties.ContainsKey("CleanSql"))
+                needCalculateHash = TrySetCleanSqlProperty(properties);
 
-            if (needCalculateHash && item.TryGetPropertyValue("CleanSql", out var cleanedSql))
-                item["SqlHash"] = GetSqlHash(cleanedSql);
+            if (needCalculateHash && properties.TryGetValue("CleanSql", out var cleanedSql))
+                properties.Add("SqlHash", GetSqlHash(cleanedSql));
 
             return needCalculateHash;
         }
@@ -331,11 +306,11 @@ namespace OneSTools.TechLog
             return BitConverter.ToString(res).Replace("-", "");
         }
 
-        private bool TrySetFirstContextLineProperty(TechLogItem item)
+        private bool TrySetFirstContextLineProperty(Dictionary<string, string> properties)
         {
-            if (NeedAdditionalProperty(AdditionalProperty.FirstContextLine) && item.TryGetPropertyValue("Context", out var context))
+            if (NeedAdditionalProperty(AdditionalProperty.FirstContextLine) && properties.TryGetValue("Context", out var context))
             {
-                item["FirstContextLine"] = GetFirstContextLine(context).ToString();
+                properties.Add("FirstContextLine", GetFirstContextLine(context).ToString());
 
                 return true;
             }
@@ -353,11 +328,11 @@ namespace OneSTools.TechLog
                 return context;
         }
 
-        private bool TrySetLastContextLineProperty(TechLogItem item)
+        private bool TrySetLastContextLineProperty(Dictionary<string, string> properties)
         {
-            if (NeedAdditionalProperty(AdditionalProperty.LastContextLine) && item.TryGetPropertyValue("Context", out var context))
+            if (NeedAdditionalProperty(AdditionalProperty.LastContextLine) && properties.TryGetValue("Context", out var context))
             {
-                item["LastContextLine"] = GetLastContextLine(context).ToString();
+                properties.Add("LastContextLine", GetLastContextLine(context).ToString());
 
                 return true;
             }
@@ -379,7 +354,7 @@ namespace OneSTools.TechLog
         {
             if (_fileStream == null)
             {
-                _fileStream = new FileStream(LogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                _fileStream = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 _streamReader = new StreamReader(_fileStream);
             }
         }
