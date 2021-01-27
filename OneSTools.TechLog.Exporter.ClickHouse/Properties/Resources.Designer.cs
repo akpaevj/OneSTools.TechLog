@@ -64,18 +64,18 @@ namespace OneSTools.TechLog.Exporter.ClickHouse.Properties {
         ///   Ищет локализованную строку, похожую на CREATE TABLE IF NOT EXISTS Items
         ///(
         ///	DateTime DateTime Codec(Delta, LZ4),
+        ///StartTicks Int64 Codec(DoubleDelta, LZ4),
+        ///EndTicks Int64 Codec(DoubleDelta, LZ4),
         ///	EventName LowCardinality(String),
         ///	Duration Int64 Codec(DoubleDelta, LZ4),
         ///	PProcessName LowCardinality(String),
+        ///	SessionID String Codec(ZSTD),
         ///	TClientID Int32 Codec(DoubleDelta, LZ4),
         ///	TApplicationName LowCardinality(String),
         ///	TComputerName LowCardinality(String),
         ///	TConnectID Int32 Codec(DoubleDelta, LZ4),
         ///	Usr LowCardinality(String),
-        ///	Sql String Codec(ZSTD),
-        ///	SqlHash String Codec(ZSTD),
-        ///	Context String Codec(ZSTD),
-        ///	FirstContextLine String Codec(ZS [остаток строки не уместился]&quot;;.
+        ///	Sq [остаток строки не уместился]&quot;;.
         /// </summary>
         internal static string CreateItemsTable {
             get {

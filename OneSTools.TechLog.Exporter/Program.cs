@@ -2,14 +2,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using OneSTools.TechLog.Exporter;
 using OneSTools.TechLog.Exporter.ClickHouse;
 using OneSTools.TechLog.Exporter.Core;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace OneSTools.TechLog.Exporter
 {

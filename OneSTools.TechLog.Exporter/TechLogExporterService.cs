@@ -1,14 +1,5 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using OneSTools.TechLog;
-using OneSTools.TechLog.Exporter;
-using OneSTools.TechLog.Exporter.ClickHouse;
 using OneSTools.TechLog.Exporter.Core;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 

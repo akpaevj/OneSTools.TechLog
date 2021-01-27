@@ -121,9 +121,12 @@
     <value>CREATE TABLE IF NOT EXISTS Items
 (
 	DateTime DateTime Codec(Delta, LZ4),
+StartTicks Int64 Codec(DoubleDelta, LZ4),
+EndTicks Int64 Codec(DoubleDelta, LZ4),
 	EventName LowCardinality(String),
 	Duration Int64 Codec(DoubleDelta, LZ4),
 	PProcessName LowCardinality(String),
+	SessionID String Codec(ZSTD),
 	TClientID Int32 Codec(DoubleDelta, LZ4),
 	TApplicationName LowCardinality(String),
 	TComputerName LowCardinality(String),
@@ -131,12 +134,16 @@
 	Usr LowCardinality(String),
 	Sql String Codec(ZSTD),
 	SqlHash String Codec(ZSTD),
+	WaitConnections String Codec(ZSTD),
+	LocksHashes Array(String),
+DeadlockInfo String Codec(ZSTD),
 	Context String Codec(ZSTD),
 	FirstContextLine String Codec(ZSTD),
-	LastContextLine String Codec(ZSTD)
+	LastContextLine String Codec(ZSTD),
+Descr String Codec(ZSTD)
 )
 engine = MergeTree()
-ORDER BY (DateTime)</value>
+ORDER BY (DateTime, EndTicks, EventName)</value>
     <comment>Создание таблицы для событий EXCP</comment>
   </data>
   <data name="CreateLastPositionsTable" xml:space="preserve">

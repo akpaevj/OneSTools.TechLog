@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OneSTools.TechLog.Exporter.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OneSTools.TechLog.Exporter", "OneSTools.TechLog.Exporter\OneSTools.TechLog.Exporter.csproj", "{860F1C21-5449-403B-AA90-B988B394E394}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OneSTools.TechLog.Exporter.ClickHouse", "OneSTools.TechLog.Exporter.ClickHouse\OneSTools.TechLog.Exporter.ClickHouse.csproj", "{D2651363-59FF-42FE-892E-5A4E6F910EBB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OneSTools.TechLog.Exporter.ClickHouse", "OneSTools.TechLog.Exporter.ClickHouse\OneSTools.TechLog.Exporter.ClickHouse.csproj", "{D2651363-59FF-42FE-892E-5A4E6F910EBB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

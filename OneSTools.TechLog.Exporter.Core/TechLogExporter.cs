@@ -10,55 +10,6 @@ using System.Threading.Tasks.Dataflow;
 
 namespace OneSTools.TechLog.Exporter.Core
 {
-    public class EventPropertiesMatrixCreator
-    {
-        public EventPropertiesMatrixCreator(string logFolder)
-        {
-            var data = new Dictionary<string, List<string>>();
-
-            var files = Directory.GetFiles(logFolder, "*.log", SearchOption.AllDirectories);
-
-            foreach (var file in files)
-            {
-                using var reader = new TechLogFileReader(file, AdditionalProperty.All);
-
-                while (true)
-                {
-                    var item = reader.ReadNextItem();
-
-                    if (item is null)
-                        break;
-
-                    var eventName = item.EventName;
-
-                    if (!data.TryGetValue(eventName, out var props))
-                    {
-                        props = new List<string>();
-                        data.Add(eventName, props);
-                    }
-
-                    foreach (var property in item.AllProperties.Keys)
-                    {
-                        if (!props.Contains(property))
-                            props.Add(property);
-                    }
-                }
-            }
-
-            // find common properties
-            var common = new HashSet<string>();
-
-            foreach (var props in data.Values)
-                foreach (var prop in props)
-                    common.Add(prop);
-
-            foreach (var props in data.Values)
-                common = common.Intersect(props).ToHashSet();
-
-            var strData = System.Text.Json.JsonSerializer.Serialize(data);
-        }
-    }
-
     public class TechLogExporter : IDisposable
     {
         private readonly TechLogExporterSettings _settings;
@@ -67,6 +18,7 @@ namespace OneSTools.TechLog.Exporter.Core
         private readonly HashSet<string> _beingReadFiles = new HashSet<string>();
 
         private ActionBlock<TechLogItem[]> _writeBlock;
+        private TransformBlock<TechLogItem[], TechLogItem[]> _analyzerBlock;
         private ActionBlock<string> _readBlock;
         private FileSystemWatcher _logFilesWatcher;
         private CancellationToken _cancellationToken;
@@ -88,9 +40,7 @@ namespace OneSTools.TechLog.Exporter.Core
             _storage = storage;
             _logger = logger;
 
-            InitializeDataflow();
-
-            //var matrix = new EventPropertiesMatrixCreator(_settings.LogFolder);
+            InitializeDataFlow();
         }
 
         public TechLogExporter(TechLogExporterSettings settings, ITechLogStorage storage, ILogger<TechLogExporter> logger = null)
@@ -99,7 +49,7 @@ namespace OneSTools.TechLog.Exporter.Core
             _storage = storage;
             _logger = logger;
 
-            InitializeDataflow();
+            InitializeDataFlow();
         }
 
         public async Task StartAsync(CancellationToken cancellationToken = default)
@@ -124,7 +74,7 @@ namespace OneSTools.TechLog.Exporter.Core
             _logger?.LogInformation("Exporter is stopped");
         }
 
-        private void InitializeDataflow(CancellationToken cancellationToken = default)
+        private void InitializeDataFlow(CancellationToken cancellationToken = default)
         {
             var writeBlockOptions = new ExecutionDataflowBlockOptions()
             {
@@ -133,13 +83,21 @@ namespace OneSTools.TechLog.Exporter.Core
             };
             _writeBlock = new ActionBlock<TechLogItem[]>(WriteItems, writeBlockOptions);
 
+            var analyzerBlockOptions = new ExecutionDataflowBlockOptions()
+            {
+                CancellationToken = cancellationToken,
+                BoundedCapacity = _settings.BatchFactor
+            };
+            _analyzerBlock = new TransformBlock<TechLogItem[], TechLogItem[]>(AnalyzeItems, analyzerBlockOptions);
+            _analyzerBlock.LinkTo(_writeBlock, new DataflowLinkOptions { PropagateCompletion = true });
+
             var readBlockOptions = new ExecutionDataflowBlockOptions()
             {
                 CancellationToken = cancellationToken,
                 BoundedCapacity = DataflowBlockOptions.Unbounded
             };
             _readBlock = new ActionBlock<string>(ReadLogFileAsync, readBlockOptions);
-            _ = _readBlock.Completion.ContinueWith(c => _writeBlock.Complete());
+            _ = _readBlock.Completion.ContinueWith(c => _analyzerBlock.Complete(), cancellationToken);
         }
 
         private async Task WriteItems(TechLogItem[] items)
@@ -153,7 +111,7 @@ namespace OneSTools.TechLog.Exporter.Core
 
                 await _storage.WriteLastPositionAsync(lastItem.FolderName, lastItem.FileName, lastItem.EndPosition);
 
-                _logger?.LogDebug($"{items.Length} events were being written");
+                _logger?.LogDebug($"{DateTime.Now:HH:mm:ss.ffffff} {items.Length} events were being written");
             }
             catch (TaskCanceledException) { }
             catch (Exception ex)
@@ -162,23 +120,86 @@ namespace OneSTools.TechLog.Exporter.Core
             }
         }
 
+        private static TechLogItem[] AnalyzeItems(TechLogItem[] items)
+        {
+            return items;
+
+            var setContext = false;
+            var context = "";
+            int? tClientId = 0;
+            var firstEvent = false;
+            long startTicks = 0;
+
+            for (var i = items.Length - 1; i >= 0; i--)
+            {
+                var item = items[i];
+
+                // If it reached Context event then it can set context in the chain of events
+                if (item.EventName == "Context")
+                {
+                    setContext = true;
+                    context = item.Context;
+                    tClientId = item.TClientID;
+                    firstEvent = true;
+                    startTicks = 0;
+
+                    continue;
+                }
+
+                if (setContext && item.TClientID == tClientId)
+                {
+                    if (firstEvent)
+                    {
+                        if (item.EventName == "CALL")
+                        {
+                            firstEvent = false;
+                            item.Context = context;
+                            startTicks = item.StartTicks;
+                        }
+                        else
+                        {
+                            setContext = false;
+                            context = "";
+                            tClientId = 0;
+                            firstEvent = false;
+                            startTicks = 0;
+                        }
+                    }
+                    else
+                    {
+                        // Stop if it reached an earliest time than the CALL start time
+                        if (item.DateTime.Ticks > startTicks)
+                            item.Context = context;
+                        else
+                        {
+                            setContext = false;
+                            context = "";
+                            tClientId = 0;
+                            startTicks = 0;
+                        }
+                    }
+                }
+            }
+
+            return items;
+        }
+
         private async Task ReadLogFileAsync(string filePath)
         {
             var items = new List<TechLogItem>(_settings.BatchSize);
 
             try
             {
-                using var reader = new TechLogFileReader(filePath, AdditionalProperty.All);
+                using var reader = new TechLogFileReader(filePath);
 
                 var position = await _storage.GetLastPositionAsync(reader.FolderName, reader.FileName, _cancellationToken);
                 reader.Position = position;
 
-                bool needFlushItems = false;
+                var needFlushItems = false;
 
-                TechLogItem item;
                 while (!_cancellationToken.IsCancellationRequested)
                 {
-                    item = reader.ReadNextItem(_cancellationToken);
+                    var item = reader.ReadNextItem(_cancellationToken);
 
                     if (item == null)
                     {
@@ -187,37 +208,31 @@ namespace OneSTools.TechLog.Exporter.Core
                             if (needFlushItems)
                             {
                                 if (items.Count > 0)
-                                    Post(items.ToArray(), _writeBlock, _cancellationToken);
+                                    Post(items.ToArray(), _analyzerBlock, _cancellationToken);
 
                                 break;
                             }
-                            else
-                            {
-                                needFlushItems = true;
-                                await Task.Delay(_settings.ReadingTimeout * 1000);
-                                continue;
-                            }
-                        }
-                        else
-                        {
-                            if (items.Count > 0)
-                                Post(items.ToArray(), _writeBlock, _cancellationToken);
 
-                            break;
+                            needFlushItems = true;
+                            await Task.Delay(_settings.ReadingTimeout * 1000, _cancellationToken);
+                            continue;
                         }
+
+                        if (items.Count > 0)
+                            Post(items.ToArray(), _analyzerBlock, _cancellationToken);
+
+                        break;
                     }
-                    else
-                    {
-                        needFlushItems = false;
 
-                        items.Add(item);
+                    needFlushItems = false;
 
-                        if (items.Count == items.Capacity)
-                        {
-                            Post(items.ToArray(), _writeBlock, _cancellationToken);
-                            items.Clear();
-                        }
-                    }
+                    items.Add(item);
+
+                    if (items.Count != items.Capacity) 
+                        continue;
+
+                    Post(items.ToArray(), _analyzerBlock, _cancellationToken);
+                    items.Clear();
                 }
             }
             catch (TaskCanceledException) { }
@@ -228,7 +243,7 @@ namespace OneSTools.TechLog.Exporter.Core
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to execute TechLogExporter");
-                throw ex;
+                throw;
             }
             finally
             {
