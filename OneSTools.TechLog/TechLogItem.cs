@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 
 namespace OneSTools.TechLog
 {
-    public class TechLogItem    {
+    public class TechLogItem {
         /// <summary>
         /// Collection of key/value pairs
         /// </summary>
@@ -19,6 +19,7 @@ namespace OneSTools.TechLog
         public DateTime DateTime { get; internal set; }
 
         public long StartTicks { get; internal set; }
+
         public long EndTicks { get; internal set; }
 
         /// <summary>

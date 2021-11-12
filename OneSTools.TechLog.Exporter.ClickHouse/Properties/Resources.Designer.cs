@@ -91,7 +91,7 @@ namespace OneSTools.TechLog.Exporter.ClickHouse.Properties {
         ///	Position Int64 Codec(DoubleDelta, LZ4)
         ///)
         ///engine = MergeTree()
-        ///ORDER BY (Folder).
+        ///ORDER BY (Folder, File).
         /// </summary>
         internal static string CreateLastPositionsTable {
             get {

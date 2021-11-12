@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <UserSecretsId>dotnet-TechLogExporter-E9ACEC9F-C3D8-45CE-A879-75285C05F850</UserSecretsId>
     <AssemblyName>OneSTools.TechLog.Exporter</AssemblyName>
     <RootNamespace>OneSTools.TechLog.Exporter</RootNamespace>

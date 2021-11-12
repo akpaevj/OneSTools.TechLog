@@ -9,7 +9,7 @@
     <PackageProjectUrl>https://github.com/akpaevj/OneSTools.TechLog</PackageProjectUrl>
     <Copyright>Akpaev Evgeny</Copyright>
     <Description>Библиотека для чтения и парсинга технологического журнала 1С</Description>
-    <Version>2.1.5</Version>
+    <Version>2.1.6</Version>
     <LangVersion>8.0</LangVersion>
     <PackageIcon>onestools_icon_nuget.png</PackageIcon>
     <PackageLicenseExpression></PackageLicenseExpression>
@@ -28,11 +28,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="C:\Users\akpaev.e.ENTERPRISE\source\repos\OneSTools.TechLog\LICENSE">
+    <None Include="..\LICENSE">
       <Pack>True</Pack>
       <PackagePath></PackagePath>
     </None>
-    <None Include="C:\Users\akpaev.e.ENTERPRISE\source\repos\onestools_icon_nuget.png">
+    <None Include="..\..\onestools_icon_nuget.png">
       <Pack>True</Pack>
       <PackagePath></PackagePath>
     </None>
